@@ -32,7 +32,7 @@ class VfdbTool(BaseTool):
         fasta_file = vfdb_dir / "VFs.fasta"
         db_prefix = vfdb_dir / "vfdb_db"
 
-        url = "http://www.mgc.ac.cn/VFs/down/VFs.fasta.gz"
+        url = "http://www.mgc.ac.cn/VFs/down/VFDB_setA_nt.fas.gz"
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
         }
@@ -43,7 +43,7 @@ class VfdbTool(BaseTool):
                 with open(fasta_gz, "wb") as f:
                     shutil.copyfileobj(response.raw, f)
             else:
-                fallback_url = "http://www.mgc.ac.cn/VFs/down/VFs.fasta"
+                fallback_url = "http://www.mgc.ac.cn/VFs/down/VFDB_setA_nt.fas"
                 print(f"Gzip file not found (HTTP {response.status_code}). Trying fallback URL: {fallback_url}...")
                 res_fb = requests.get(fallback_url, headers=headers, timeout=30)
                 res_fb.raise_for_status()
