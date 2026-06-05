@@ -156,7 +156,28 @@ class VfdbTool(BaseTool):
             with open(final_output_file, "w") as outfile:
                 outfile.write("\n".join(filtered_lines) + "\n")
                 
+            # Create the gene summary (cut -f2 | sort | uniq -c | sort -nr)
+            summary_output_file = output_dir / f"{input_file.stem}_virulence_gene_summary_strict.txt"
+            from collections import Counter
+            sseqid_counts = Counter()
+            
+            # Skip header (index 0)
+            for line in filtered_lines[1:]:
+                parts = line.split("\t")
+                if len(parts) > 1:
+                    sseqid = parts[1]
+                    sseqid_counts[sseqid] += 1
+            
+            # Sort by count (descending), then by sseqid (ascending)
+            sorted_counts = sorted(sseqid_counts.items(), key=lambda x: (-x[1], x[0]))
+            
+            # Write summary file matching the 'uniq -c' formatting
+            with open(summary_output_file, "w") as sum_file:
+                for sseqid, count in sorted_counts:
+                    sum_file.write(f"{count:>7} {sseqid}\n")
+                    
             print(f"[{self.name.upper()}] Strict hits saved at: {final_output_file}")
+            print(f"[{self.name.upper()}] Gene summary saved at: {summary_output_file}")
             return final_output_file
             
         except subprocess.CalledProcessError as e:
