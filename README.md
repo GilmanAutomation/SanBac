@@ -37,9 +37,15 @@ cd SanBac
 ```
 
 ### 2. Create the Conda Environment
-SanBac relies on external bioinformatics tools (`prokka`, `blast`, `rgi`) which require system dependencies. You can build the Conda environment using the local file:
+SanBac relies on external bioinformatics tools (`prokka`, `blast`, `rgi`) which require system dependencies. 
+
+To ensure fast and clean package resolution, we recommend setting Conda's channel priority to `strict` first:
 
 ```bash
+# Set channel priority to strict (recommended)
+conda config --set channel_priority strict
+
+# Create the environment using the local file
 conda env create -f conda_env.yml
 conda activate sanbac_env
 ```
