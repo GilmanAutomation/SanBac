@@ -26,28 +26,34 @@ The architecture is highly extensible, allowing you to easily add new tools (e.g
 
 ## Installation
 
-### 1. Prerequisites (Conda Setup)
-Bioinformatics tools like Prokka, BLAST+, and RGI require specialized system dependencies (Perl, Java, C libraries). The easiest way to install them is using **Conda**.
+To make installation simple, follow these steps in order:
 
-A `conda_env.yml` is provided in the repository. Create the environment by running:
+### 1. Clone the Repository & Change Directory
+Clone the repository to your machine and move into the project folder:
 
 ```bash
-# Create the environment from the file
-conda env create -f conda_env.yml
+git clone https://github.com/GilmanAutomation/SanBac.git
+cd SanBac
+```
 
-# Activate the environment
+### 2. Create the Conda Environment
+SanBac relies on external bioinformatics tools (`prokka`, `blast`, `rgi`) which require system dependencies. You can build the Conda environment using the local file:
+
+```bash
+conda env create -f conda_env.yml
 conda activate sanbac_env
 ```
 
-### 2. Install SanBac
-Install the package in editable mode (`-e`) so that you can easily update the tool and add custom plugins:
+*(Alternative: You can create the environment directly from GitHub without cloning first)*:
+```bash
+conda env create -f https://raw.githubusercontent.com/GilmanAutomation/SanBac/main/conda_env.yml
+conda activate sanbac_env
+```
+
+### 3. Install SanBac CLI
+With the conda environment active, install the CLI:
 
 ```bash
-# Clone the repository
-git clone https://github.com/GilmanAutomation/SanBac.git
-cd SanBac
-
-# Install SanBac and its python dependencies
 pip install -e .
 ```
 
