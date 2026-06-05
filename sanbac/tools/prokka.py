@@ -23,19 +23,21 @@ class ProkkaTool(BaseTool):
             print("Error: 'prokka' command not found. Please install Prokka first.")
             return False
         
-        print("Setting up Prokka databases...")
+        print("Setting up Prokka databases (if writable)...")
         try:
             result = subprocess.run(
                 [prokka_cmd, "--setupdb"],
                 capture_output=True,
-                text=True,
-                check=True
+                text=True
             )
-            print(result.stdout)
+            if result.returncode == 0:
+                print("Prokka databases configured successfully.")
+            else:
+                print("Notice: Prokka --setupdb failed (this is normal if system databases are read-only and already configured).")
             return True
-        except subprocess.CalledProcessError as e:
-            print(f"Error setting up Prokka databases: {e.stderr or e.stdout}")
-            return False
+        except Exception as e:
+            print(f"Notice: Prokka database setup skipped: {e}")
+            return True
 
     def run(self, input_file: Path, output_dir: Path, threads: int) -> Path:
         prokka_cmd = config.get_executable("prokka")
