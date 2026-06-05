@@ -63,7 +63,25 @@ With the conda environment active, install the CLI:
 pip install -e .
 ```
 
-After installation, the global command `sanbac` will be available in your shell.
+### 🚨 Ubuntu / ARM64 (aarch64) Native Installation
+If you are running on an **ARM64 (aarch64) Linux** machine (like AWS Graviton or Apple Silicon Linux VMs), Bioconda does not provide pre-compiled packages for tools like `bamtools` or `rgi`. 
+
+You can install all dependencies natively using Ubuntu's package manager (`apt`) and Python's `pip` in seconds:
+
+```bash
+# 1. Install system bioinformatics tools via apt
+sudo apt-get update
+sudo apt-get install -y ncbi-blast+ prokka prodigal diamond bamtools python3-pip python3-venv
+
+# 2. Create and activate a virtual environment
+python3 -m venv sanbac_env
+source sanbac_env/bin/activate
+
+# 3. Install RGI (CARD) and SanBac
+pip install --upgrade pip setuptools
+pip install git+https://github.com/arpcard/rgi.git
+pip install -e .
+```
 
 ---
 
