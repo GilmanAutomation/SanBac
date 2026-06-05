@@ -105,6 +105,8 @@ def update_tool_cmd(repo):
     success = update_tool(**kwargs)
     if success:
         click.secho("Update process finished.", fg="green")
+        click.echo("Updating analysis databases (CARD, VFDB) to match latest versions...")
+        update_databases()
     else:
         click.secho("Update process failed.", fg="red")
 
