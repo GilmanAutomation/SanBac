@@ -28,24 +28,25 @@ class VfdbTool(BaseTool):
         vfdb_dir = config.db_dir / "vfdb"
         vfdb_dir.mkdir(parents=True, exist_ok=True)
         
-        fasta_gz = vfdb_dir / "VFs.fasta.gz"
-        fasta_file = vfdb_dir / "VFs.fasta"
+        fasta_gz = vfdb_dir / "VFDB_setB_nt.fas.gz"
+        fasta_file = vfdb_dir / "VFDB_setB_nt.fas"
         db_prefix = vfdb_dir / "vfdb_db"
 
-        url = "http://www.mgc.ac.cn/VFs/down/VFDB_setA_nt.fas.gz"
+        # Download the full (core + predicted) VFDB dataset
+        url = "https://www.mgc.ac.cn/VFs/Down/VFDB_setB_nt.fas.gz"
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
         }
-        print(f"Downloading VFDB from {url}...")
+        print(f"Downloading full VFDB database from {url}...")
         try:
-            response = requests.get(url, headers=headers, stream=True, timeout=30)
+            response = requests.get(url, headers=headers, stream=True, timeout=60)
             if response.status_code == 200:
                 with open(fasta_gz, "wb") as f:
                     shutil.copyfileobj(response.raw, f)
             else:
-                fallback_url = "http://www.mgc.ac.cn/VFs/down/VFDB_setA_nt.fas"
+                fallback_url = "https://www.mgc.ac.cn/VFs/Down/VFDB_setB_nt.fas"
                 print(f"Gzip file not found (HTTP {response.status_code}). Trying fallback URL: {fallback_url}...")
-                res_fb = requests.get(fallback_url, headers=headers, timeout=30)
+                res_fb = requests.get(fallback_url, headers=headers, timeout=60)
                 res_fb.raise_for_status()
                 with open(fasta_file, "wb") as f:
                     f.write(res_fb.content)
@@ -55,7 +56,7 @@ class VfdbTool(BaseTool):
 
         # Extract if gzipped
         if fasta_gz.exists():
-            print("Extracting VFs.fasta.gz...")
+            print("Extracting VFDB_setB_nt.fas.gz...")
             try:
                 with gzip.open(fasta_gz, 'rb') as f_in:
                     with open(fasta_file, 'wb') as f_out:
@@ -95,25 +96,75 @@ class VfdbTool(BaseTool):
             if not self.update_db():
                 raise RuntimeError("Could not find or build VFDB database.")
 
-        output_file = output_dir / f"{input_file.stem}_vfdb_blast.tsv"
+        raw_output_file = output_dir / f"{input_file.stem}_results_virulence_detailed_raw.tmp"
+        final_output_file = output_dir / f"{input_file.stem}_virulence_hits_strict.txt"
         blastn_cmd = config.get_executable("blastn")
         
+        # Run BLASTn with custom 15-column format
         cmd = [
             blastn_cmd,
             "-query", str(input_file),
             "-db", str(db_prefix),
-            "-out", str(output_file),
-            "-outfmt", "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore",
-            "-num_threads", str(threads),
-            "-evalue", "1e-5",
-            "-perc_identity", "80"
+            "-out", str(raw_output_file),
+            "-outfmt", "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen stitle",
+            "-num_threads", str(threads)
         ]
 
         print(f"[{self.name.upper()}] Running blastn against VFDB database for {input_file.name}...")
         try:
             subprocess.run(cmd, capture_output=True, text=True, check=True)
-            return output_file
+            
+            # Parse, filter, calculate coverage, and format output
+            print(f"[{self.name.upper()}] Filtering significant hits for {input_file.name}...")
+            filtered_lines = []
+            
+            # Write header
+            filtered_lines.append("qseqid\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tqlen\tslen\tscov(%)\tproduct")
+            
+            if raw_output_file.exists():
+                with open(raw_output_file, "r") as infile:
+                    for line in infile:
+                        parts = line.strip().split("\t")
+                        if len(parts) < 15:
+                            continue
+                        
+                        try:
+                            pident = float(parts[2])
+                            length = int(parts[3])
+                            evalue = float(parts[10])
+                            bitscore = float(parts[11])
+                            qlen = int(parts[12])
+                            slen = int(parts[13])
+                            
+                            # Re-join all fields from the 15th column onwards as product
+                            product = " ".join(parts[14:])
+                            
+                            # Coverage calculation: (alignment_length / query_length) * 100
+                            qcov = (length / qlen) * 100
+                            
+                            # Apply strict filter rules
+                            if pident >= 80.0 and qcov >= 80.0 and evalue <= 1e-5:
+                                formatted = f"{parts[0]}\t{parts[1]}\t{pident:.3f}\t{length}\t{parts[4]}\t{parts[5]}\t{parts[6]}\t{parts[7]}\t{parts[8]}\t{parts[9]}\t{evalue:.2e}\t{bitscore:.1f}\t{qlen}\t{slen}\t{qcov:.2f}\t{product}"
+                                filtered_lines.append(formatted)
+                        except ValueError:
+                            continue
+                
+                # Delete temporary raw file
+                raw_output_file.unlink()
+            
+            # Write final tab-separated hits file
+            with open(final_output_file, "w") as outfile:
+                outfile.write("\n".join(filtered_lines) + "\n")
+                
+            print(f"[{self.name.upper()}] Strict hits saved at: {final_output_file}")
+            return final_output_file
+            
         except subprocess.CalledProcessError as e:
+            if raw_output_file.exists():
+                try:
+                    raw_output_file.unlink()
+                except Exception:
+                    pass
             print(f"[{self.name.upper()}] Error running blastn on {input_file.name}:")
             print(e.stderr or e.stdout)
             raise e
