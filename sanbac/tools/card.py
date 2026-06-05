@@ -50,7 +50,7 @@ class CardTool(BaseTool):
             "--input_sequence", str(input_file),
             "--output_file", str(output_prefix),
             "--input_type", "contig",
-            "--num_threads", str(threads),
+            "-n", str(threads),
             "--clean"
         ]
         
