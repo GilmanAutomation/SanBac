@@ -1,0 +1,187 @@
+# SanBac 🦠
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+
+**SanBac** is a professional, modular, and multithreaded bacterial genomics analysis pipeline in Python. It provides a simple command-line interface (CLI) to automatically run a suite of annotation and screening tools sequentially on an entire directory of genome sequences (FASTA/FNA formats). 
+
+By default, the pipeline runs the following tools in order:
+1. **CARD** (Comprehensive Antibiotic Resistance Database) — via RGI (Resistance Gene Identifier) to identify antibiotic resistance genes (ARGs).
+2. **VFDB** (Virulence Factor Database) — via blastn to screen for virulence factors.
+3. **Prokka** — to execute rapid prokaryotic genome annotation (protein coding genes, tRNA, rRNA).
+
+The architecture is highly extensible, allowing you to easily add new tools (e.g. tools 4, 5, 6) simply by adding a Python script.
+
+---
+
+## Key Features
+
+*   ⚡ **Extensible Plugin System**: Add new tools as self-contained plugins. They are automatically discovered, configured, and run in sequence.
+*   🧵 **Smart Multithreading**: Parallelizes analysis across genomes and assigns optimal CPU threads per run, maximizing hardware utilization.
+*   🔄 **Database Manager**: Build and update local databases (like CARD or VFDB) automatically with one command.
+*   📦 **Self-Updater**: Keep the codebase up to date by pulling updates directly from GitHub.
+*   ⚙️ **Custom Configuration**: Easily change default database directories or map custom binaries using config overrides.
+
+---
+
+## Installation
+
+### 1. Prerequisites (Conda Setup)
+Bioinformatics tools like Prokka, BLAST+, and RGI require specialized system dependencies (Perl, Java, C libraries). The easiest way to install them is using **Conda**.
+
+A `conda_env.yml` is provided in the repository. Create the environment by running:
+
+```bash
+# Create the environment from the file
+conda env create -f conda_env.yml
+
+# Activate the environment
+conda activate sanbac_env
+```
+
+### 2. Install SanBac
+Install the package in editable mode (`-e`) so that you can easily update the tool and add custom plugins:
+
+```bash
+# Clone the repository
+git clone https://github.com/ahsansh/SanBac.git
+cd SanBac
+
+# Install SanBac and its python dependencies
+pip install -e .
+```
+
+After installation, the global command `sanbac` will be available in your shell.
+
+---
+
+## Usage Guide
+
+### 1. View Available Tools
+Check the status of registered tools and see if their command-line dependencies are found on your system path:
+```bash
+sanbac list-tools
+```
+
+### 2. Download and Update Databases
+Download the latest versions of databases (CARD, VFDB) and index them:
+```bash
+sanbac update-db
+```
+*Note: The VFDB database will be downloaded and built automatically if you try to run the pipeline without it.*
+
+### 3. Run the Pipeline
+To run the full suite on a folder containing `.fasta` or `.fna` files:
+```bash
+sanbac run --input-dir /path/to/genomes --output-dir /path/to/results --threads 8
+```
+
+#### CLI Options:
+*   `-i, --input-dir`: **(Required)** Folder containing FASTA genome assembly files.
+*   `-o, --output-dir`: **(Required)** Output directory where subdirectories for each tool will be created.
+*   `-t, --threads`: **(Default: 4)** Total CPU cores to allocate.
+*   `--tools`: Comma-separated list of tools to run (e.g. `--tools card,prokka`). If omitted, all tools run sequentially.
+
+---
+
+## Deep Dive: How it Works
+
+### 1. Multithreading Architecture
+SanBac uses a smart resource scheduler to distribute threads. If you assign `-t 8` and have 4 genomes in your input directory:
+*   All 4 genomes are processed in parallel (concurrency of 4).
+*   Each tool run is allocated `8 / 4 = 2` threads.
+This ensures your CPU cores are fully saturated without incurring heavy thrashing or context-switching overhead.
+
+### 2. Output File Structure
+Results are structured cleanly by tool:
+```
+results/
+├── card/
+│   ├── sample1.txt       # CARD detailed tabular outputs
+│   └── sample2.txt
+├── vfdb/
+│   ├── sample1_vfdb_blast.tsv  # Outfmt-6 BLAST report against VFDB
+│   └── sample2_vfdb_blast.tsv
+└── prokka/
+    ├── sample1/          # Full Prokka annotation folder
+    │   ├── sample1.gff
+    │   ├── sample1.faa
+    │   └── sample1.fna
+    └── sample2/
+        ├── sample2.gff
+        └── sample2.faa
+```
+
+### 3. Self-Updating
+To upgrade the pipeline to the latest version directly from GitHub:
+```bash
+sanbac update-tool
+```
+*   If running inside a git checkout, this executes `git pull`.
+*   Otherwise, it upgrades the python package using `pip`.
+
+---
+
+## Adding Custom Tools (Plugins)
+
+You can extend SanBac with features 4, 5, 6, etc. by placing a new Python file in the `sanbac/tools/` directory.
+
+### Example: Adding a custom tool (`sanbac/tools/my_tool.py`)
+Create a new file in `sanbac/tools/` and subclass `BaseTool`:
+
+```python
+from pathlib import Path
+import subprocess
+import shutil
+from .base import BaseTool
+
+class MyCustomTool(BaseTool):
+    @property
+    def name(self) -> str:
+        # This is the CLI name and the folder name for output
+        return "mytool"
+
+    @property
+    def description(self) -> str:
+        return "My custom genomics plugin (e.g., PlasmidFinder)"
+
+    def is_installed(self) -> bool:
+        # Verify the dependency command is on the path
+        return shutil.which("mytool-cli") is not None
+
+    def update_db(self) -> bool:
+        # Command to update this tool's database
+        print("Updating custom databases...")
+        return True
+
+    def run(self, input_file: Path, output_dir: Path, threads: int) -> Path:
+        # Execute the tool
+        output_dir.mkdir(parents=True, exist_ok=True)
+        out_file = output_dir / f"{input_file.stem}_report.txt"
+        
+        cmd = ["mytool-cli", "-i", str(input_file), "-o", str(out_file), "-t", str(threads)]
+        subprocess.run(cmd, check=True)
+        
+        return out_file
+```
+
+Once saved, this tool is **automatically detected**. You will see it listed when running `sanbac list-tools`, and it will execute as part of your pipeline!
+
+---
+
+## Configuration overrides
+
+If you have custom binary paths or want to store databases in a specific directory, use the `config` command:
+
+```bash
+# View configuration
+sanbac config
+
+# Change database directory
+sanbac config --db-dir /path/to/shared/dbs
+
+# Override executable path (e.g. if blastn is in a non-standard path)
+sanbac config --exec-name blastn --exec-path /usr/local/bin/blastn
+```
+
+Configuration is persisted in `~/.sanbac/config.json`.

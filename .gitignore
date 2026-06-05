@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Environments
+.env
+venv/
+.venv/
+env/
+
+# Test outputs and local files
+.pytest_cache/
+tests/output/
+tests/input/
+.sanbac/
+db/
+scratch/
+test_input/
+test_output/
+*.log

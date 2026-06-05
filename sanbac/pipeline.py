@@ -1,0 +1,93 @@
+import concurrent.futures
+from pathlib import Path
+from typing import List, Dict
+from .tools import load_tools
+from .tools.base import BaseTool
+
+def discover_fasta_files(input_dir: Path) -> List[Path]:
+    """Finds all FASTA/FNA/FA files (including gzipped ones) in the input directory."""
+    extensions = (".fasta", ".fna", ".fa", ".fasta.gz", ".fna.gz", ".fa.gz")
+    fasta_files = []
+    if not input_dir.is_dir():
+        raise NotADirectoryError(f"Input path '{input_dir}' is not a directory.")
+        
+    for p in input_dir.iterdir():
+        if p.is_file() and p.name.lower().endswith(extensions):
+            fasta_files.append(p)
+            
+    return sorted(fasta_files)
+
+class PipelineRunner:
+    def __init__(self, selected_tools: List[str] = None):
+        self.all_tools: Dict[str, BaseTool] = load_tools()
+        if selected_tools:
+            # Filter and order tools according to user request
+            self.tools_to_run = []
+            for t in selected_tools:
+                if t in self.all_tools:
+                    self.tools_to_run.append(self.all_tools[t])
+                else:
+                    print(f"Warning: Tool '{t}' is not registered or found.")
+        else:
+            # Default sequence: first run preferred core tools, then any other plugins
+            preferred_order = ["card", "vfdb", "prokka"]
+            ordered = []
+            for name in preferred_order:
+                if name in self.all_tools:
+                    ordered.append(self.all_tools[name])
+            for name, tool in self.all_tools.items():
+                if name not in preferred_order:
+                    ordered.append(tool)
+            self.tools_to_run = ordered
+
+    def run_pipeline(self, input_dir: Path, output_dir: Path, total_threads: int = 4):
+        """Runs all selected tools on all fasta files in the input directory."""
+        input_path = Path(input_dir)
+        output_path = Path(output_dir)
+        
+        fasta_files = discover_fasta_files(input_path)
+        if not fasta_files:
+            print(f"No FASTA/FNA files found in {input_path}")
+            return
+            
+        print(f"Found {len(fasta_files)} FASTA file(s) to process.")
+        print(f"Tools in pipeline: {', '.join([t.name for t in self.tools_to_run])}")
+        
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # Run tools in sequence
+        for tool in self.tools_to_run:
+            print(f"\n==================================================")
+            print(f"Running Tool: {tool.name.upper()} - {tool.description}")
+            print(f"==================================================")
+            
+            if not tool.is_installed():
+                print(f"Error: {tool.name.upper()} is not installed on this system. Skipping.")
+                continue
+                
+            tool_output_dir = output_path / tool.name
+            tool_output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Determine parallel files configuration:
+            # Divide threads evenly across files processed in parallel.
+            num_files = len(fasta_files)
+            concurrency = min(total_threads, num_files)
+            threads_per_file = max(1, total_threads // concurrency)
+            
+            print(f"Processing {num_files} file(s) with concurrency={concurrency} (threads_per_file={threads_per_file})")
+            
+            # Use ThreadPoolExecutor to process files in parallel
+            with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as executor:
+                futures = {}
+                for f in fasta_files:
+                    futures[executor.submit(tool.run, f, tool_output_dir, threads_per_file)] = f
+                    
+                for future in concurrent.futures.as_completed(futures):
+                    fasta_file = futures[future]
+                    try:
+                        result_path = future.result()
+                        print(f"Finished: {tool.name.upper()} on {fasta_file.name} -> Output at: {result_path}")
+                    except Exception as exc:
+                        print(f"Error: {tool.name.upper()} failed on {fasta_file.name} with exception: {exc}")
+                        
+        print("\nPipeline execution completed.")
