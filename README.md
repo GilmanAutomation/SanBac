@@ -71,7 +71,7 @@ You can install all dependencies natively using Ubuntu's package manager (`apt`)
 ```bash
 # 1. Install system bioinformatics tools via apt
 sudo apt-get update
-sudo apt-get install -y ncbi-blast+ prokka prodigal diamond bamtools python3-pip python3-venv
+sudo apt-get install -y ncbi-blast+ prokka prodigal diamond-aligner bamtools python3-pip python3-venv
 
 # 2. Create and activate a virtual environment
 python3 -m venv sanbac_env
