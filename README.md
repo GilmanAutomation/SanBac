@@ -78,6 +78,7 @@ python3 -m venv sanbac_env
 source sanbac_env/bin/activate
 
 # 3. Install RGI (CARD) and SanBac
+cd ~/SanBac
 pip install --upgrade pip setuptools
 pip install git+https://github.com/arpcard/rgi.git
 pip install -e .
