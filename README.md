@@ -44,7 +44,7 @@ Install the package in editable mode (`-e`) so that you can easily update the to
 
 ```bash
 # Clone the repository
-git clone https://github.com/ahsansh/SanBac.git
+git clone https://github.com/GilmanAutomation/SanBac.git
 cd SanBac
 
 # Install SanBac and its python dependencies
